@@ -5,7 +5,7 @@ on:
       - main  # Trigger CI on pushes to the main branch
     paths:
       - 'backend/**'  # Only trigger when backend files change
-
+  workflow_dispatch:  # Add this to enable manual triggering
 jobs:
   test:
     name: Run Backend Tests
