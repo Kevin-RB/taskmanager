@@ -1,80 +1,47 @@
 name: Backend CI
-
 on:
   push:
     branches:
       - main  # Trigger CI on pushes to the main branch
-
+    paths:
+      - 'backend/**'  # Only trigger when backend files change
 
 jobs:
   test:
-    name: Run Tests
+    name: Run Backend Tests
     runs-on: self-hosted
-
-    strategy:
-      matrix:
-        node-version: [22] # Test on multiple Node.js versions
-
-
-    environment: MONGO_URI
-
+    environment: MONGO_URI  # Environment for secrets
+    
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
-
-    # Set up Node.js
+      
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: ${{ matrix.node-version }}
-
-    - name: Print Env Secret
-
-      env:
-        MONGO_URI: ${{ secrets.MONGO_URI }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        PORT: ${{ secrets.PORT }}
-      run: | 
-        echo "Secret 1 is: $MONGO_URI"
-        echo "Secret 2 is: $JWT_SECRET"
-        echo "Secret 3 is: $PORT"
-      
-    - run: pm2 stop all
-
-    # Install dependencies for backend
+        node-version: 22
+        cache: 'npm'
+        cache-dependency-path: './backend/package-lock.json'
+        
     - name: Install Backend Dependencies
       working-directory: ./backend
-      run: | 
-       npm install --global yarn
-       yarn --version
-       yarn install
-      
-    # Install dependencies for frontend
-    - name: Install Frontend Dependencies
-      working-directory: ./frontend
-      run: |
-        df -h
-        sudo rm -rf ./build
-        yarn install
-        yarn run build
-
-
-    # Run backend tests
+      run: npm ci  # Clean install using package-lock.json
+        
     - name: Run Backend Tests
+      working-directory: ./backend
       env:
         MONGO_URI: ${{ secrets.MONGO_URI }}
         JWT_SECRET: ${{ secrets.JWT_SECRET }}
         PORT: ${{ secrets.PORT }}
-      working-directory: ./backend
       run: npm test
-
-
-    - run: npm ci
-    - run: | 
-        cd ./backend
-        touch .env
+      
+    # Optional: Deploy if tests pass
+    - name: Deploy Backend Changes
+      if: success()
+      working-directory: ./backend
+      run: |
+        # Create .env file securely without printing contents
         echo "${{ secrets.PROD }}" > .env
-
-    - run: pm2 start all
-
-    - run: pm2 restart all
+        
+        # Restart only the backend service with zero downtime
+        pm2 reload backend || pm2 start backend
